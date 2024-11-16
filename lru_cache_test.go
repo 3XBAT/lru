@@ -2,6 +2,7 @@ package lru
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -11,6 +12,50 @@ func TestCacheNewCache(t *testing.T) {
 	_, err := NewCache(0, nil)
 	if err == nil {
 		t.Error("should return error")
+	}
+}
+
+func TestCache_LargeVolumeComplexData(t *testing.T) {
+	cacheSize := 10000
+	cache, _ := NewCache(cacheSize, nil)
+
+	for i := 0; i < cacheSize; i++ {
+		key := []int{i, i * 2, i * 3}
+
+		value := map[string]any{
+			"mapValue":    map[string]int{"key1": i, "key2": i * 2},
+			"channel":     make(chan int, 1),
+			"nestedValue": struct{ ID int }{ID: i},
+		}
+
+		cache.Add(key, value)
+	}
+
+	for i := 0; i < cacheSize; i++ {
+		key := []int{i, i * 2, i * 3}
+
+		value, ok := cache.Get(key)
+		if !ok {
+			t.Errorf("key %+v not found in cache", key)
+			continue
+		}
+
+		expected := map[string]any{
+			"mapValue":    map[string]int{"key1": i, "key2": i * 2},
+			"channel":     make(chan int, 1),
+			"nestedValue": struct{ ID int }{ID: i},
+		}
+
+		if !mapsEqual(value.(map[string]any)["mapValue"].(map[string]int), expected["mapValue"].(map[string]int)) {
+			t.Errorf("mapValue mismatch for key %+v", key)
+		}
+
+		if reflect.TypeOf(value.(map[string]any)["channel"]).Kind() != reflect.Chan {
+			t.Errorf("channel type mismatch for key %+v", key)
+		}
+		if !reflect.DeepEqual(value.(map[string]any)["nestedValue"], expected["nestedValue"]) {
+			t.Errorf("nestedValue mismatch for key %+v", key)
+		}
 	}
 }
 

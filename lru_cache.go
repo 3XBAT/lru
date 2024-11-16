@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const noEvictionTTL = time.Hour * 24 * 365 * 10
+
 type EvictCallback func(key, value any)
 
 type Cache struct {
@@ -77,7 +79,7 @@ func (c *Cache) Add(key, value any) {
 		return
 	}
 
-	ent := c.list.PushFront(key, value, time.Now())
+	ent := c.list.PushFront(key, value, time.Now().Add(noEvictionTTL))
 
 	c.items[hash] = ent
 
@@ -85,6 +87,31 @@ func (c *Cache) Add(key, value any) {
 	if evict {
 		c.removeOldest()
 	}
+}
+
+func (c *Cache) Get(key any) (val any, ok bool) {
+	hash, err := hasher(key)
+	if err != nil {
+		c.onEvict(key, err)
+		return nil, false
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if ent, ok := c.items[hash]; ok {
+		if time.Now().After(ent.ExpiresAt) {
+			fmt.Println(ent.Key, ent.ExpiresAt)
+			c.list.Remove(ent)
+			delete(c.items, hash)
+			c.removeFromEntries(ent)
+			return nil, false
+		}
+		c.list.MoveToFront(ent)
+		return ent.Value, true
+	}
+
+	return nil, false
 }
 
 func (c *Cache) AddWithTTL(key, value any, ttl time.Duration) {
@@ -139,30 +166,6 @@ func (c *Cache) Remove(key any) {
 		c.removeFromEntries(ent)
 	}
 
-}
-
-func (c *Cache) Get(key any) (val any, ok bool) {
-	hash, err := hasher(key)
-	if err != nil {
-		c.onEvict(key, err)
-		return nil, false
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if ent, ok := c.items[hash]; ok {
-		if time.Now().After(ent.ExpiresAt) {
-			c.list.Remove(ent)
-			delete(c.items, hash)
-			c.removeFromEntries(ent)
-			return nil, false
-		}
-		c.list.MoveToFront(ent)
-		return ent.Value, true
-	}
-
-	return nil, false
 }
 
 func (c *Cache) Close() {
