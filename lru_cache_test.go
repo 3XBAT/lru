@@ -73,6 +73,7 @@ func TestCache_Add(t *testing.T) {
 	}
 
 	cache.Add("2", 2)
+
 	v, _ = cache.Peek("2")
 
 	if v != 2 {
@@ -558,7 +559,6 @@ func TestCache_WithMapValues(t *testing.T) {
 	}
 }
 
-// mapsEqual compares two maps for equality.
 func mapsEqual(a, b map[string]int) bool {
 	if len(a) != len(b) {
 		return false

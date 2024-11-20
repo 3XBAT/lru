@@ -101,10 +101,6 @@ func (c *Cache) Get(key any) (val any, ok bool) {
 
 	if ent, ok := c.items[hash]; ok {
 		if time.Now().After(ent.ExpiresAt) {
-			fmt.Println(ent.Key, ent.ExpiresAt)
-			c.list.Remove(ent)
-			delete(c.items, hash)
-			c.removeFromEntries(ent)
 			return nil, false
 		}
 		c.list.MoveToFront(ent)
